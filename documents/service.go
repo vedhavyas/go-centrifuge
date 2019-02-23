@@ -253,7 +253,7 @@ func (s service) getVersion(ctx context.Context, documentID, version []byte) (Mo
 }
 
 func (s service) DeriveFromCoreDocument(cd coredocumentpb.CoreDocument) (Model, error) {
-	if cd.EmbeddedData == nil {
+	if cd.EmbeddedData == nil || &cd == nil {
 		return nil, errors.New("core Document embed data is nil")
 	}
 

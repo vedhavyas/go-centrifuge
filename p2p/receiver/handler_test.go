@@ -22,7 +22,7 @@ import (
 	"github.com/centrifuge/go-centrifuge/protobufs/gen/go/protocol"
 	"github.com/centrifuge/go-centrifuge/queue"
 	"github.com/centrifuge/go-centrifuge/storage/leveldb"
-	testingcommons "github.com/centrifuge/go-centrifuge/testingutils/commons"
+	"github.com/centrifuge/go-centrifuge/testingutils/commons"
 	"github.com/centrifuge/go-centrifuge/testingutils/config"
 	"github.com/centrifuge/go-centrifuge/transactions/txv1"
 	"github.com/centrifuge/go-centrifuge/version"
@@ -177,12 +177,13 @@ func TestHandler_HandleInterceptor_NilDocument(t *testing.T) {
 
 func TestHandler_HandleInterceptor_getServiceAndModel_fail(t *testing.T) {
 	ctx := testingconfig.CreateAccountContext(t, cfg)
-	dm := documents.NewCoreDocModel()
-	req := &p2ppb.AnchorDocumentRequest{Document: dm.Document}
+	id, _ := cfg.GetIdentityID()
+	collab := hexutil.Encode(id)
+	dm, err := documents.NewCoreDocumentWithCollaborators([]string{collab})
+	req := &p2ppb.AnchorDocumentRequest{Document: &dm.Document}
 	p2pEnv, err := p2pcommon.PrepareP2PEnvelope(ctx, cfg.GetNetworkID(), p2pcommon.MessageTypeSendAnchoredDoc, req)
 	assert.NoError(t, err)
 
-	id, _ := cfg.GetIdentityID()
 	resp, err := handler.HandleInterceptor(context.Background(), defaultPID, protocol.ID(hexutil.Encode(id)), p2pEnv)
 	assert.Error(t, err, "must return error")
 	assert.Contains(t, err.Error(), "core document is nil")

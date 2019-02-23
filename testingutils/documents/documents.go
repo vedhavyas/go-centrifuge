@@ -2,9 +2,13 @@ package testingdocuments
 
 import (
 	"context"
-
+	"github.com/centrifuge/centrifuge-protobufs/documenttypes"
 	"github.com/centrifuge/centrifuge-protobufs/gen/go/coredocument"
 	"github.com/centrifuge/go-centrifuge/documents"
+	"github.com/centrifuge/go-centrifuge/protobufs/gen/go/invoice"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/ptypes/any"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -70,33 +74,34 @@ func (m *MockModel) JSON() ([]byte, error) {
 	return data, args.Error(1)
 }
 
-//func GenerateCoreDocumentModelWithCollaborators(collaborators [][]byte) *documents.CoreDocumentModel {
-//	identifier := utils.RandomSlice(32)
-//	invData := &invoicepb.InvoiceData{}
-//	dataSalts, _ := documents.GenerateNewSalts(invData, "invoice", []byte{1, 0, 0, 0})
-//
-//	serializedInv, _ := proto.Marshal(invData)
-//	doc := &coredocumentpb.CoreDocument{
-//		Collaborators:      collaborators,
-//		DocumentIdentifier: identifier,
-//		CurrentVersion:     identifier,
-//		NextVersion:        utils.RandomSlice(32),
-//		EmbeddedData: &any.Any{
-//			TypeUrl: documenttypes.InvoiceDataTypeUrl,
-//			Value:   serializedInv,
-//		},
-//		EmbeddedDataSalts: documents.ConvertToProtoSalts(dataSalts),
-//	}
-//	cdSalts, _ := documents.GenerateNewSalts(doc, "", nil)
-//	doc.CoredocumentSalts = documents.ConvertToProtoSalts(cdSalts)
-//	dm := documents.NewCoreDocModel()
-//	mockModel := MockModel{
-//		CoreDocumentModel: dm,
-//	}
-//	dm.Document = doc
-//	return mockModel.CoreDocumentModel
-//}
-//
-//func GenerateCoreDocumentModel() *documents.CoreDocumentModel {
-//	return GenerateCoreDocumentModelWithCollaborators(nil)
-//}
+func GenerateCoreDocumentModelWithCollaborators(collaborators [][]byte) (*documents.CoreDocument, error) {
+	var collabs []string
+	for _, c := range collaborators {
+		id := hexutil.Encode(c)
+		collabs = append(collabs, id)
+	}
+	m, err := documents.NewCoreDocumentWithCollaborators(collabs)
+	if err != nil {
+		return nil, err
+	}
+	invData := &invoicepb.InvoiceData{}
+	dataSalts, _ := documents.GenerateNewSalts(invData, "invoice", []byte{1, 0, 0, 0})
+	serializedInv, _ := proto.Marshal(invData)
+	m.Document.EmbeddedData = &any.Any{
+				TypeUrl: documenttypes.InvoiceDataTypeUrl,
+				Value:   serializedInv,
+			}
+	m.Document.EmbeddedDataSalts = documents.ConvertToProtoSalts(dataSalts)
+	cdSalts, _ := documents.GenerateNewSalts(&m.Document, "", nil)
+	m.Document.CoredocumentSalts = documents.ConvertToProtoSalts(cdSalts)
+
+	return m, nil
+}
+
+func GenerateCoreDocumentModel() (*documents.CoreDocument, error) {
+	m, err := GenerateCoreDocumentModelWithCollaborators(nil)
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
+}

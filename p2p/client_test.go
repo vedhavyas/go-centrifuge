@@ -47,8 +47,7 @@ func TestGetSignatureForDocument_fail_connect(t *testing.T) {
 	m := &MockMessenger{}
 	testClient := &peer{config: cfg, idService: idService, mes: m, disablePeerStore: true}
 
-	coreDocModel := testingdocuments.GenerateCoreDocumentModel()
-	coreDoc := coreDocModel.Document
+	coreDoc, err := testingdocuments.GenerateCoreDocumentModel()
 	c, err := cfg.GetConfig()
 	assert.NoError(t, err)
 	c = updateKeys(c)
@@ -56,11 +55,11 @@ func TestGetSignatureForDocument_fail_connect(t *testing.T) {
 
 	assert.Nil(t, err, "centrifugeId not initialized correctly ")
 
-	_, err = p2pcommon.PrepareP2PEnvelope(ctx, c.GetNetworkID(), p2pcommon.MessageTypeRequestSignature, &p2ppb.SignatureRequest{Document: coreDoc})
+	_, err = p2pcommon.PrepareP2PEnvelope(ctx, c.GetNetworkID(), p2pcommon.MessageTypeRequestSignature, &p2ppb.SignatureRequest{Document: &coreDoc.Document	})
 	assert.NoError(t, err, "signature request could not be created")
 
 	m.On("SendMessage", ctx, mock.Anything, mock.Anything, p2pcommon.ProtocolForCID(centrifugeId)).Return(nil, errors.New("some error"))
-	resp, err := testClient.getSignatureForDocument(ctx, *coreDocModel, centrifugeId)
+	resp, err := testClient.getSignatureForDocument(ctx, coreDoc.Document, centrifugeId)
 	m.AssertExpectations(t)
 	assert.Error(t, err, "must fail")
 	assert.Nil(t, resp, "must be nil")
@@ -73,18 +72,18 @@ func TestGetSignatureForDocument_fail_version_check(t *testing.T) {
 	idService := getIDMocks(centrifugeId)
 	m := &MockMessenger{}
 	testClient := &peer{config: cfg, idService: idService, mes: m, disablePeerStore: true}
-	coreDocModel := testingdocuments.GenerateCoreDocumentModel()
-	coreDoc := coreDocModel.Document
+	coreDoc, err := testingdocuments.GenerateCoreDocumentModel()
+	assert.NoError(t, err)
 	c, err := cfg.GetConfig()
 	assert.NoError(t, err)
 	c = updateKeys(c)
 	ctx := testingconfig.CreateAccountContext(t, c)
 
-	_, err = p2pcommon.PrepareP2PEnvelope(ctx, c.GetNetworkID(), p2pcommon.MessageTypeRequestSignature, &p2ppb.SignatureRequest{Document: coreDoc})
+	_, err = p2pcommon.PrepareP2PEnvelope(ctx, c.GetNetworkID(), p2pcommon.MessageTypeRequestSignature, &p2ppb.SignatureRequest{Document: &coreDoc.Document})
 	assert.NoError(t, err, "signature request could not be created")
 
 	m.On("SendMessage", ctx, mock.Anything, mock.Anything, p2pcommon.ProtocolForCID(centrifugeId)).Return(testClient.createSignatureResp("", nil), nil)
-	resp, err := testClient.getSignatureForDocument(ctx, *coreDocModel, centrifugeId)
+	resp, err := testClient.getSignatureForDocument(ctx, coreDoc.Document, centrifugeId)
 	m.AssertExpectations(t)
 	assert.Error(t, err, "must fail")
 	assert.Contains(t, err.Error(), "Incompatible version")
@@ -96,8 +95,7 @@ func TestGetSignatureForDocument_fail_centrifugeId(t *testing.T) {
 	idService := getIDMocks(centrifugeId)
 	m := &MockMessenger{}
 	testClient := &peer{config: cfg, idService: idService, mes: m, disablePeerStore: true}
-	coreDocModel := testingdocuments.GenerateCoreDocumentModel()
-	coreDoc := coreDocModel.Document
+	coreDoc, err := testingdocuments.GenerateCoreDocumentModel()
 	c, err := cfg.GetConfig()
 	assert.NoError(t, err)
 	c = updateKeys(c)
@@ -105,14 +103,14 @@ func TestGetSignatureForDocument_fail_centrifugeId(t *testing.T) {
 
 	assert.Nil(t, err, "centrifugeId not initialized correctly ")
 
-	_, err = p2pcommon.PrepareP2PEnvelope(ctx, c.GetNetworkID(), p2pcommon.MessageTypeRequestSignature, &p2ppb.SignatureRequest{Document: coreDoc})
+	_, err = p2pcommon.PrepareP2PEnvelope(ctx, c.GetNetworkID(), p2pcommon.MessageTypeRequestSignature, &p2ppb.SignatureRequest{Document: &coreDoc.Document})
 	assert.NoError(t, err, "signature request could not be created")
 
 	randomBytes := utils.RandomSlice(identity.CentIDLength)
 	signature := &coredocumentpb.Signature{EntityId: randomBytes, PublicKey: utils.RandomSlice(32)}
 	m.On("SendMessage", ctx, mock.Anything, mock.Anything, p2pcommon.ProtocolForCID(centrifugeId)).Return(testClient.createSignatureResp(version.GetVersion().String(), signature), nil)
 
-	resp, err := testClient.getSignatureForDocument(ctx, *coreDocModel, centrifugeId)
+	resp, err := testClient.getSignatureForDocument(ctx, coreDoc.Document, centrifugeId)
 
 	m.AssertExpectations(t)
 	assert.Nil(t, resp, "must be nil")

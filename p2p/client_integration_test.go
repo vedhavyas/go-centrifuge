@@ -48,7 +48,7 @@ func TestClient_GetSignaturesForDocument(t *testing.T) {
 	tc, _, err := createLocalCollaborator(t, false)
 	ctxh := testingconfig.CreateAccountContext(t, cfg)
 	dm := prepareDocumentForP2PHandler(t, [][]byte{tc.IdentityID})
-	err = client.GetSignaturesForDocument(ctxh, dm)
+	sig, err := client.GetSignaturesForDocument(ctxh, dm)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(dm.Document.Signatures))
 }
@@ -89,26 +89,20 @@ func createLocalCollaborator(t *testing.T, corruptID bool) (*configstore.Account
 	return tcr, id, err
 }
 
-func prepareDocumentForP2PHandler(t *testing.T, collaborators [][]byte) *documents.CoreDocumentModel {
+func prepareDocumentForP2PHandler(t *testing.T, collaborators [][]byte) *documents.CoreDocument {
 	idConfig, err := identity.GetIdentityConfig(cfg)
 	assert.Nil(t, err)
-	dm := testingdocuments.GenerateCoreDocumentModelWithCollaborators(collaborators)
-	m, err := docService.DeriveFromCoreDocument(dm)
+	dm, err := testingdocuments.GenerateCoreDocumentModelWithCollaborators(collaborators)
+	m, err := docService.DeriveFromCoreDocument(dm.Document)
 	assert.Nil(t, err)
 
-	droot, err := m.DataRoot()
+	_, err = m.DataRoot()
 	assert.Nil(t, err)
-
-	dm, err = m.PackCoreDocument()
+	_, err = dm.SigningRoot(documents.DocumentTypeField)
 	assert.NoError(t, err)
-
-	tree, err := dm.GetDocumentSigningTree(droot)
-	assert.NoError(t, err)
-	dm.Document.SigningRoot = tree.RootHash()
 	sig := identity.Sign(idConfig, identity.KeyPurposeSigning, dm.Document.SigningRoot)
-	dm.Document.Signatures = append(dm.Document.Signatures, sig)
-	tree, err = dm.GetDocumentRootTree()
+	dm.AppendSignatures(sig)
+	_, err = dm.DocumentRoot()
 	assert.NoError(t, err)
-	dm.Document.DocumentRoot = tree.RootHash()
 	return dm
 }

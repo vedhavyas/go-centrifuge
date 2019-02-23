@@ -80,16 +80,14 @@ func TestHandler_GetDocumentSucceeds(t *testing.T) {
 	assert.NotNil(t, resp)
 
 	// Add signature received
-	doc := dm.Document
-	doc.Signatures = append(doc.Signatures, resp.Signature)
-	tree, err := dm.GetDocumentRootTree()
+	dm.AppendSignatures(resp.Signature)
+	_, err = dm.DocumentRoot()
 	assert.NoError(t, err)
-	doc.DocumentRoot = tree.RootHash()
 
 	// Anchor document
 	idConfig, err := identity.GetIdentityConfig(cfg)
-	anchorIDTyped, _ := anchors.ToAnchorID(doc.CurrentVersion)
-	docRootTyped, _ := anchors.ToDocumentRoot(doc.DocumentRoot)
+	anchorIDTyped, _ := anchors.ToAnchorID(dm.Document.CurrentVersion)
+	docRootTyped, _ := anchors.ToDocumentRoot(dm.Document.DocumentRoot)
 	messageToSign := anchors.GenerateCommitHash(anchorIDTyped, centrifugeId, docRootTyped)
 	signature, _ := secp256k1.SignEthereum(messageToSign, idConfig.Keys[identity.KeyPurposeEthMsgAuth].PrivateKey)
 	anchorConfirmations, err := anchorRepo.CommitAnchor(ctxh, anchorIDTyped, docRootTyped, centrifugeId, [][anchors.DocumentProofLength]byte{utils.RandomByte32()}, signature)
@@ -107,7 +105,7 @@ func TestHandler_GetDocumentSucceeds(t *testing.T) {
 	getReq := getGetDocumentRequest(dm)
 	getDocResp, err := handler.GetDocument(ctxh, getReq, centrifugeId)
 	assert.Nil(t, err)
-	assert.ObjectsAreEqual(getDocResp.Document, doc)
+	assert.ObjectsAreEqual(getDocResp.Document, dm.Document)
 }
 
 func TestHandler_HandleInterceptorReqSignature(t *testing.T) {
@@ -176,7 +174,7 @@ func TestHandler_RequestDocumentSignature_UpdateSucceeds(t *testing.T) {
 	sig := resp.Signature
 	assert.True(t, ed25519.Verify(sig.PublicKey, doc.SigningRoot, sig.Signature), "signature must be valid")
 	//Update document
-	newDM, err := dm.PrepareNewVersion(nil)
+	newDM, err := dm.PrepareNewVersion(nil, false)
 	assert.Nil(t, err)
 	updateDocumentForP2Phandler(t, newDM)
 	newDM = prepareDocumentForP2PHandler(t, newDM)
@@ -193,7 +191,7 @@ func TestHandler_RequestDocumentSignature_UpdateSucceeds(t *testing.T) {
 func TestHandler_RequestDocumentSignatureFirstTimeOnUpdatedDocument(t *testing.T) {
 	ctxh := testingconfig.CreateAccountContext(t, cfg)
 	dm := prepareDocumentForP2PHandler(t, nil)
-	newDM, err := dm.PrepareNewVersion(nil)
+	newDM, err := dm.PrepareNewVersion(nil, false)
 	assert.Nil(t, err)
 	newDoc := newDM.Document
 	assert.NotEqual(t, newDoc.DocumentIdentifier, newDoc.CurrentVersion)
@@ -270,15 +268,14 @@ func TestHandler_SendAnchoredDocument(t *testing.T) {
 	assert.NotNil(t, resp)
 
 	// Add signature received
-	doc := dm.Document
-	doc.Signatures = append(doc.Signatures, resp.Signature)
-	tree, _ := dm.GetDocumentRootTree()
-	doc.DocumentRoot = tree.RootHash()
+	dm.AppendSignatures(resp.Signature)
+	_, err = dm.DocumentRoot()
+	assert.NoError(t, err)
 
 	// Anchor document
 	idConfig, err := identity.GetIdentityConfig(cfg)
-	anchorIDTyped, _ := anchors.ToAnchorID(doc.CurrentVersion)
-	docRootTyped, _ := anchors.ToDocumentRoot(doc.DocumentRoot)
+	anchorIDTyped, _ := anchors.ToAnchorID(dm.Document.CurrentVersion)
+	docRootTyped, _ := anchors.ToDocumentRoot(dm.Document.DocumentRoot)
 	messageToSign := anchors.GenerateCommitHash(anchorIDTyped, centrifugeId, docRootTyped)
 	signature, _ := secp256k1.SignEthereum(messageToSign, idConfig.Keys[identity.KeyPurposeEthMsgAuth].PrivateKey)
 	anchorConfirmations, err := anchorRepo.CommitAnchor(ctxh, anchorIDTyped, docRootTyped, centrifugeId, [][anchors.DocumentProofLength]byte{utils.RandomByte32()}, signature)
@@ -330,35 +327,29 @@ func createIdentity(t *testing.T) identity.CentID {
 	return centrifugeId
 }
 
-func prepareDocumentForP2PHandler(t *testing.T, dm *documents.CoreDocumentModel) *documents.CoreDocumentModel {
+func prepareDocumentForP2PHandler(t *testing.T, dm *documents.CoreDocument) *documents.CoreDocument {
 	idConfig, err := identity.GetIdentityConfig(cfg)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	if dm == nil {
-		dm = testingdocuments.GenerateCoreDocumentModel()
+		dm, err = testingdocuments.GenerateCoreDocumentModel()
+		assert.NoError(t, err)
 	}
 
-	m, err := docSrv.DeriveFromCoreDocument(dm)
+	m, err := docSrv.DeriveFromCoreDocument(dm.Document)
 	assert.Nil(t, err)
 
-	droot, err := m.DataRoot()
+	_, err = m.DataRoot()
 	assert.Nil(t, err)
-
-	dm, err = m.PackCoreDocument()
+	_, err = dm.SigningRoot(documents.DocumentTypeField)
 	assert.NoError(t, err)
-
-	tree, err := dm.GetDocumentSigningTree(droot)
+	sig := identity.Sign(idConfig, identity.KeyPurposeSigning, dm.Document.SigningRoot)
+	dm.AppendSignatures(sig)
+	_, err = dm.DocumentRoot()
 	assert.NoError(t, err)
-	doc := dm.Document
-	doc.SigningRoot = tree.RootHash()
-	sig := identity.Sign(idConfig, identity.KeyPurposeSigning, doc.SigningRoot)
-	doc.Signatures = append(doc.Signatures, sig)
-	tree, err = dm.GetDocumentRootTree()
-	assert.NoError(t, err)
-	doc.DocumentRoot = tree.RootHash()
 	return dm
 }
 
-func updateDocumentForP2Phandler(t *testing.T, model *documents.CoreDocumentModel) {
+func updateDocumentForP2Phandler(t *testing.T, model *documents.CoreDocument) {
 	invData := &invoicepb.InvoiceData{}
 	dataSalts, _ := documents.GenerateNewSalts(invData, "invoice", []byte{1, 0, 0, 0})
 
@@ -370,23 +361,20 @@ func updateDocumentForP2Phandler(t *testing.T, model *documents.CoreDocumentMode
 		Value:   serializedInv,
 	}
 	doc.EmbeddedDataSalts = documents.ConvertToProtoSalts(dataSalts)
-	cdSalts, _ := documents.GenerateNewSalts(doc, "", nil)
+	cdSalts, _ := documents.GenerateNewSalts(&doc, "", nil)
 	doc.CoredocumentSalts = documents.ConvertToProtoSalts(cdSalts)
 }
 
-func getAnchoredRequest(dm *documents.CoreDocumentModel) *p2ppb.AnchorDocumentRequest {
-	doc := *dm.Document
-	return &p2ppb.AnchorDocumentRequest{Document: &doc}
+func getAnchoredRequest(dm *documents.CoreDocument) *p2ppb.AnchorDocumentRequest {
+	return &p2ppb.AnchorDocumentRequest{Document: &dm.Document}
 }
 
-func getSignatureRequest(dm *documents.CoreDocumentModel) *p2ppb.SignatureRequest {
-	doc := *dm.Document
-	return &p2ppb.SignatureRequest{Document: &doc}
+func getSignatureRequest(dm *documents.CoreDocument) *p2ppb.SignatureRequest {
+	return &p2ppb.SignatureRequest{Document: &dm.Document}
 }
 
-func getGetDocumentRequest(dm *documents.CoreDocumentModel) *p2ppb.GetDocumentRequest {
-	doc := dm.Document
-	return &p2ppb.GetDocumentRequest{DocumentIdentifier: doc.DocumentIdentifier}
+func getGetDocumentRequest(dm *documents.CoreDocument) *p2ppb.GetDocumentRequest {
+	return &p2ppb.GetDocumentRequest{DocumentIdentifier: dm.Document.DocumentIdentifier}
 }
 
 func resolveSignatureResponse(t *testing.T, p2pEnv *protocolpb.P2PEnvelope) *p2ppb.SignatureResponse {
