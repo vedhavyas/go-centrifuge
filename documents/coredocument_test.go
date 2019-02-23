@@ -159,11 +159,11 @@ func TestGetSigningProofHashes(t *testing.T) {
 	err := cd.setSalts()
 	assert.NoError(t, err)
 
-	err = cd.calculateSigningRoot()
-	assert.Nil(t, err)
+	_, err = cd.SigningRoot(documenttypes.InvoiceDocumentTypeUrl)
+	assert.NoError(t, err)
 
-	err = cd.calculateDocumentRoot()
-	assert.Nil(t, err)
+	_, err = cd.DocumentRoot()
+	assert.NoError(t, err)
 
 	hashes, err := cd.getSigningRootProofHashes()
 	assert.Nil(t, err)
@@ -183,21 +183,23 @@ func TestGetDocumentSigningTree(t *testing.T) {
 	cd := newCoreDocument()
 
 	// no data root
-	_, err := cd.signingRootTree()
+	_, err := cd.SigningRoot(documenttypes.InvoiceDocumentTypeUrl)
 	assert.Error(t, err)
 
 	// no embed data
 	cd.Document.DataRoot = utils.RandomSlice(32)
-	_, err = cd.signingRootTree()
+	_, err = cd.SigningRoot(documenttypes.InvoiceDocumentTypeUrl)
 	assert.Error(t, err)
 
 	// successful tree generation
 	cd.Document.EmbeddedData = docAny
 	assert.NoError(t, cd.setSalts())
-	tree, err := cd.signingRootTree()
+	root, err := cd.SigningRoot(documenttypes.InvoiceDocumentTypeUrl)
 	assert.Nil(t, err)
-	assert.NotNil(t, tree)
+	assert.NotNil(t, root)
 
+	tree, err := cd.DocumentRootTree()
+	assert.NoError(t, err)
 	_, leaf := tree.GetLeafByProperty("data_root")
 	assert.NotNil(t, leaf)
 
@@ -250,8 +252,10 @@ func TestCoreDocument_GenerateProofs(t *testing.T) {
 	cd.Document.Collaborators = [][]byte{utils.RandomSlice(32), utils.RandomSlice(32)}
 	assert.NoError(t, cd.setSalts())
 	cd.Document.DataRoot = testTree.RootHash()
-	assert.NoError(t, cd.calculateSigningRoot())
-	assert.NoError(t, cd.calculateDocumentRoot())
+	_, err = cd.SigningRoot(documenttypes.InvoiceDataTypeUrl)
+	assert.NoError(t, err)
+	_, err = cd.DocumentRoot()
+	assert.NoError(t, err)
 
 	cdTree, err := cd.DocumentRootTree()
 	assert.NoError(t, err)

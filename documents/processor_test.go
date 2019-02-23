@@ -31,14 +31,14 @@ type mockModel struct {
 	Model
 }
 
-func (m mockModel) PackCoreDocument() (*CoreDocumentModel, error) {
+func (m mockModel) PackCoreDocument() (coredocumentpb.CoreDocument, error) {
 	args := m.Called()
-	cd, _ := args.Get(0).(*CoreDocumentModel)
+	cd, _ := args.Get(0).(coredocumentpb.CoreDocument)
 	return cd, args.Error(1)
 }
 
-func (m mockModel) UnpackCoreDocument(model *CoreDocumentModel) error {
-	args := m.Called(model)
+func (m mockModel) UnpackCoreDocument(document coredocumentpb.CoreDocument) error {
+	args := m.Called(document)
 	return args.Error(0)
 }
 
@@ -59,7 +59,8 @@ func TestDefaultProcessor_PrepareForSignatureRequests(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to pack core Document")
 
-	dm := NewCoreDocModel()
+	dm, err := NewCoreDocumentWithCollaborators(nil)
+	assert.NoError(t, err)
 	cd := dm.Document
 	model = mockModel{}
 
@@ -71,7 +72,7 @@ func TestDefaultProcessor_PrepareForSignatureRequests(t *testing.T) {
 		TypeUrl: "some type",
 		Value:   []byte("some data"),
 	}
-	dm.setCoreDocumentSalts()
+	dm.setSalts()
 	model = mockModel{}
 	model.On("PackCoreDocument").Return(dm, nil).Once()
 	cfg.Set("keys.signing.publicKey", pub)
@@ -108,9 +109,9 @@ type p2pClient struct {
 	Client
 }
 
-func (p p2pClient) GetSignaturesForDocument(ctx context.Context, model *CoreDocumentModel) error {
+func (p p2pClient) GetSignaturesForDocument(ctx context.Context, model Model) ([]*coredocumentpb.Signature, error) {
 	args := p.Called(ctx, model)
-	return args.Error(0)
+    return args.Error(0)
 }
 
 func TestDefaultProcessor_RequestSignatures(t *testing.T) {
@@ -126,7 +127,8 @@ func TestDefaultProcessor_RequestSignatures(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to pack core Document")
 
 	// validations failed
-	dm := NewCoreDocModel()
+	dm, err := NewCoreDocumentWithCollaborators(nil)
+	assert.NoError(t, err)
 	model = mockModel{}
 	model.On("PackCoreDocument").Return(dm, nil).Times(4)
 	err = dp.RequestSignatures(ctxh, model)
@@ -135,14 +137,15 @@ func TestDefaultProcessor_RequestSignatures(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to validate model for signature request")
 
 	// failed signature collection
-	dm = NewCoreDocModel()
+	dm, err = NewCoreDocumentWithCollaborators(nil)
+	assert.NoError(t, err)
 	cd := dm.Document
 	cd.DataRoot = utils.RandomSlice(32)
 	cd.EmbeddedData = &any.Any{
 		TypeUrl: "some type",
 		Value:   []byte("some data"),
 	}
-	dm.setCoreDocumentSalts()
+	dm.setSalts()
 	model = mockModel{}
 	model.On("PackCoreDocument").Return(dm, nil).Once()
 	model.On("UnpackCoreDocument", dm).Return(nil).Once()
@@ -151,7 +154,7 @@ func TestDefaultProcessor_RequestSignatures(t *testing.T) {
 	assert.Nil(t, err)
 	model.AssertExpectations(t)
 	c := p2pClient{}
-	c.On("GetSignaturesForDocument", ctxh, dm).Return(errors.New("error")).Once()
+	c.On("GetSignaturesForDocument", ctxh, model).Return(nil, errors.New("error")).Once()
 	dp.p2pClient = c
 	model = mockModel{}
 	model.On("PackCoreDocument").Return(dm, nil).Times(4)
@@ -164,7 +167,7 @@ func TestDefaultProcessor_RequestSignatures(t *testing.T) {
 
 	// unpack fail
 	c = p2pClient{}
-	c.On("GetSignaturesForDocument", ctxh, dm).Return(nil).Once()
+	c.On("GetSignaturesForDocument", ctxh, model).Return("signatures", nil).Once()
 	dp.p2pClient = c
 	model = mockModel{}
 	model.On("PackCoreDocument").Return(dm, nil).Times(4)
@@ -178,7 +181,7 @@ func TestDefaultProcessor_RequestSignatures(t *testing.T) {
 
 	// success
 	c = p2pClient{}
-	c.On("GetSignaturesForDocument", ctxh, dm).Return(nil).Once()
+	c.On("GetSignaturesForDocument", ctxh, dm).Return("signatures", nil).Once()
 	dp.p2pClient = c
 	model = mockModel{}
 	model.On("PackCoreDocument").Return(dm, nil).Times(4)
@@ -202,7 +205,8 @@ func TestDefaultProcessor_PrepareForAnchoring(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to pack core Document")
 
 	// failed validations
-	dm := NewCoreDocModel()
+	dm, err := NewCoreDocumentWithCollaborators(nil)
+	assert.NoError(t, err)
 	model = mockModel{}
 	model.On("PackCoreDocument").Return(dm, nil).Times(4)
 	err = dp.PrepareForAnchoring(model)
@@ -211,16 +215,17 @@ func TestDefaultProcessor_PrepareForAnchoring(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to validate signatures")
 
 	// failed unpack
-	dm = NewCoreDocModel()
+	dm, err = NewCoreDocumentWithCollaborators(nil)
+	assert.NoError(t, err)
 	cd := dm.Document
 	cd.DataRoot = utils.RandomSlice(32)
 	cd.EmbeddedData = &any.Any{
 		TypeUrl: "some type",
 		Value:   []byte("some data"),
 	}
-	dm.setCoreDocumentSalts()
+	dm.setSalts()
 	model.On("DataRoot").Return(cd.DataRoot, nil)
-	err = dm.CalculateSigningRoot(cd.DataRoot)
+	_, err = dm.SigningRoot(DocumentTypeField)
 	assert.Nil(t, err)
 	model = mockModel{}
 	model.On("PackCoreDocument").Return(dm, nil).Times(4)
@@ -283,7 +288,8 @@ func TestDefaultProcessor_AnchorDocument(t *testing.T) {
 
 	// validations failed
 	model = mockModel{}
-	dm := NewCoreDocModel()
+	dm, err := NewCoreDocumentWithCollaborators(nil)
+	assert.NoError(t, err)
 	model.On("PackCoreDocument").Return(dm, nil).Times(5)
 	err = dp.AnchorDocument(ctxh, model)
 	model.AssertExpectations(t)
@@ -291,15 +297,17 @@ func TestDefaultProcessor_AnchorDocument(t *testing.T) {
 	assert.Contains(t, err.Error(), "pre anchor validation failed")
 
 	// get ID failed
-	dm = NewCoreDocModel()
+	dm, err = NewCoreDocumentWithCollaborators(nil)
+	assert.NoError(t, err)
 	cd := dm.Document
 	cd.DataRoot = utils.RandomSlice(32)
 	cd.EmbeddedData = &any.Any{
 		TypeUrl: "some type",
 		Value:   []byte("some data"),
 	}
-	dm.setCoreDocumentSalts()
-	assert.Nil(t, dm.CalculateSigningRoot(cd.DataRoot))
+	dm.setSalts()
+	_, err = dm.SigningRoot(DocumentTypeField)
+	assert.NoError(t, err)
 	model = mockModel{}
 	model.On("PackCoreDocument").Return(dm, nil).Times(5)
 	model.On("DataRoot").Return(cd.DataRoot, nil)
@@ -307,7 +315,8 @@ func TestDefaultProcessor_AnchorDocument(t *testing.T) {
 	assert.Nil(t, err)
 	s := identity.Sign(c, identity.KeyPurposeSigning, cd.SigningRoot)
 	cd.Signatures = []*coredocumentpb.Signature{s}
-	assert.Nil(t, dm.CalculateDocumentRoot())
+	_, err = dm.DocumentRoot()
+	assert.NoError(t, err)
 	assert.Nil(t, err)
 	srv.On("ValidateSignature", mock.Anything, mock.Anything).Return(nil).Once()
 	err = dp.AnchorDocument(context.Background(), model)
@@ -349,7 +358,8 @@ func TestDefaultProcessor_SendDocument(t *testing.T) {
 
 	// failed validations
 	model = mockModel{}
-	dm := NewCoreDocModel()
+	dm, err := NewCoreDocumentWithCollaborators(nil)
+	assert.NoError(t, err)
 	model.On("PackCoreDocument").Return(dm, nil).Times(6)
 	err = dp.SendDocument(ctxh, model)
 	model.AssertExpectations(t)
@@ -357,7 +367,8 @@ func TestDefaultProcessor_SendDocument(t *testing.T) {
 	assert.Contains(t, err.Error(), "post anchor validations failed")
 
 	// failed send
-	dm = NewCoreDocModel()
+	dm, err = NewCoreDocumentWithCollaborators(nil)
+	assert.NoError(t, err)
 	cd := dm.Document
 	cd.DataRoot = utils.RandomSlice(32)
 	cd.EmbeddedData = &any.Any{
@@ -366,8 +377,9 @@ func TestDefaultProcessor_SendDocument(t *testing.T) {
 	}
 	cd.Collaborators = [][]byte{[]byte("some id")}
 	model.On("DataRoot").Return(cd.DataRoot, nil)
-	dm.setCoreDocumentSalts()
-	assert.Nil(t, dm.CalculateSigningRoot(cd.DataRoot))
+	dm.setSalts()
+	_, err = dm.SigningRoot(DocumentTypeField)
+	assert.NoError(t, err)
 	model = mockModel{}
 	model.On("PackCoreDocument").Return(dm, nil).Times(6)
 	c, err := identity.GetIdentityConfig(cfg)
@@ -375,7 +387,8 @@ func TestDefaultProcessor_SendDocument(t *testing.T) {
 	s := identity.Sign(c, identity.KeyPurposeSigning, cd.SigningRoot)
 	cd.Signatures = []*coredocumentpb.Signature{s}
 	model.On("DataRoot").Return(cd.DataRoot, nil)
-	assert.Nil(t, dm.CalculateDocumentRoot())
+	_, err = dm.DocumentRoot()
+	assert.NoError(t, err)
 	docRoot, err := anchors.ToDocumentRoot(cd.DocumentRoot)
 	assert.Nil(t, err)
 	repo := mockRepo{}

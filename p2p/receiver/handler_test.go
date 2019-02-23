@@ -171,7 +171,7 @@ func TestHandler_HandleInterceptor_NilDocument(t *testing.T) {
 	id, _ := cfg.GetIdentityID()
 	resp, err := handler.HandleInterceptor(context.Background(), defaultPID, protocol.ID(hexutil.Encode(id)), p2pEnv)
 	assert.Error(t, err, "must return error")
-	assert.Contains(t, err.Error(), "nil core document")
+	assert.Contains(t, err.Error(), "no document in signature request")
 	assert.Nil(t, resp, "must be nil")
 }
 
@@ -186,7 +186,7 @@ func TestHandler_HandleInterceptor_getServiceAndModel_fail(t *testing.T) {
 
 	resp, err := handler.HandleInterceptor(context.Background(), defaultPID, protocol.ID(hexutil.Encode(id)), p2pEnv)
 	assert.Error(t, err, "must return error")
-	assert.Contains(t, err.Error(), "core document is nil")
+	assert.Contains(t, err.Error(), "core Document embed data is nil")
 	assert.Nil(t, resp, "must be nil")
 }
 

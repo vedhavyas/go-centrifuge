@@ -245,8 +245,10 @@ func TestCoreDocumentModel_GetNFTProofs(t *testing.T) {
 	cd.Document.EmbeddedDataSalts = ConvertToProtoSalts(dataSalts)
 	assert.NoError(t, err)
 	assert.NoError(t, cd.setSalts())
-	assert.NoError(t, cd.calculateSigningRoot())
-	assert.NoError(t, cd.calculateDocumentRoot())
+	_, err = cd.SigningRoot(documenttypes.InvoiceDocumentTypeUrl)
+	assert.NoError(t, err)
+	_, err = cd.DocumentRoot()
+	assert.NoError(t, err)
 
 	tests := []struct {
 		registry       common.Address
@@ -297,7 +299,7 @@ func TestCoreDocumentModel_GetNFTProofs(t *testing.T) {
 	assert.NoError(t, err)
 
 	for _, c := range tests {
-		pfs, err := cd.CreateNFTProofs(account, c.registry, c.tokenID, c.nftUniqueProof, c.nftReadAccess)
+		pfs, err := cd.CreateNFTProofs(documenttypes.InvoiceDataTypeUrl, account, c.registry, c.tokenID, c.nftUniqueProof, c.nftReadAccess)
 		if c.error {
 			assert.Error(t, err)
 			continue
