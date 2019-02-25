@@ -85,7 +85,7 @@ func GenerateCoreDocumentModelWithCollaborators(collaborators [][]byte) (documen
 	if err != nil {
 		return cd, err
 	}
-	invData := &invoicepb.InvoiceData{}
+	invData := new(invoicepb.InvoiceData)
 	dataSalts, _ := documents.GenerateNewSalts(invData, "invoice", []byte{1, 0, 0, 0})
 	serializedInv, _ := proto.Marshal(invData)
 	m.Document.EmbeddedData = &any.Any{
