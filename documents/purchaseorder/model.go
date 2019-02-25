@@ -405,3 +405,12 @@ func (p *PurchaseOrder) CreateNFTProofs(
 		documenttypes.PurchaseOrderDataTypeUrl,
 		account, registry, tokenID, nftUniqueProof, readAccessProof)
 }
+
+func (p *PurchaseOrder) Roles() []coredocumentpb.Role {
+	var roles []coredocumentpb.Role
+	r := p.Document.GetRoles()
+	for _, role := range r {
+		roles = append(roles, *role)
+	}
+	return roles
+}

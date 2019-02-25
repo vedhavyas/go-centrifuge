@@ -74,6 +74,9 @@ type Model interface {
 	// GetCollaborators returns the collaborators of this Document.
 	// filter ids should not be returned
 	GetCollaborators(filterIDs ...identity.CentID) ([]identity.CentID, error)
+
+	// Roles returns the Roles in this Document
+	Roles() []coredocumentpb.Role
 }
 
 // TokenRegistry defines NFT related functions.

@@ -131,7 +131,7 @@ func (s *peer) getPeerID(id identity.Identity) (libp2pPeer.ID, error) {
 }
 
 // getSignatureForDocument requests the target node to sign the document
-func (s *peer) getSignatureForDocument(ctx context.Context, cd coredocumentpb.CoreDocument, cid identity.CentID) (*p2ppb.SignatureResponse, error) {
+func (s *peer) getSignatureForDocument(ctx context.Context, model documents.Model, cid identity.CentID) (*p2ppb.SignatureResponse, error) {
 	nc, err := s.config.GetConfig()
 	if err != nil {
 		return nil, err
@@ -140,6 +140,12 @@ func (s *peer) getSignatureForDocument(ctx context.Context, cd coredocumentpb.Co
 	var resp *p2ppb.SignatureResponse
 	var header *p2ppb.Header
 	tc, err := s.config.GetAccount(cid[:])
+
+	cd, err := model.PackCoreDocument()
+	if err != nil {
+		return nil, err
+	}
+
 	if err == nil {
 		// this is a local account
 		h := s.handlerCreator()
@@ -165,6 +171,7 @@ func (s *peer) getSignatureForDocument(ctx context.Context, cd coredocumentpb.Co
 		if err != nil {
 			return nil, err
 		}
+
 		envelope, err := p2pcommon.PrepareP2PEnvelope(ctx, nc.GetNetworkID(), p2pcommon.MessageTypeRequestSignature, &p2ppb.SignatureRequest{Document: &cd})
 		if err != nil {
 			return nil, err
@@ -207,8 +214,8 @@ type signatureResponseWrap struct {
 	err  error
 }
 
-func (s *peer) getSignatureAsync(ctx context.Context, cd coredocumentpb.CoreDocument, id identity.CentID, out chan<- signatureResponseWrap) {
-	resp, err := s.getSignatureForDocument(ctx, cd, id)
+func (s *peer) getSignatureAsync(ctx context.Context, model documents.Model, id identity.CentID, out chan<- signatureResponseWrap) {
+	resp, err := s.getSignatureForDocument(ctx, model, id)
 	out <- signatureResponseWrap{
 		resp: resp,
 		err:  err,
@@ -235,16 +242,11 @@ func (s *peer) GetSignaturesForDocument(ctx context.Context, model documents.Mod
 		return nil, errors.New("failed to get external collaborators")
 	}
 
-	cd, err := model.PackCoreDocument()
-	if err != nil {
-		return nil, errors.New("failed to pack core document: %v", err)
-	}
-
 	var count int
 	peerCtx, _ := context.WithTimeout(ctx, nc.GetP2PConnectionTimeout())
 	for _, c := range cs {
 		count++
-		go s.getSignatureAsync(peerCtx, cd, c, in)
+		go s.getSignatureAsync(peerCtx, model, c, in)
 	}
 
 	var responses []signatureResponseWrap
