@@ -3,7 +3,6 @@ package p2p
 import (
 	"context"
 	"fmt"
-
 	"github.com/centrifuge/centrifuge-protobufs/gen/go/coredocument"
 
 	"github.com/centrifuge/go-centrifuge/documents"
@@ -131,7 +130,7 @@ func (s *peer) getPeerID(id identity.Identity) (libp2pPeer.ID, error) {
 }
 
 // getSignatureForDocument requests the target node to sign the document
-func (s *peer) getSignatureForDocument(ctx context.Context, model documents.Model, cid identity.CentID) (*p2ppb.SignatureResponse, error) {
+func (s *peer) getSignatureForDocument(ctx context.Context, model documents.CoreDocument, cid identity.CentID) (*p2ppb.SignatureResponse, error) {
 	nc, err := s.config.GetConfig()
 	if err != nil {
 		return nil, err
@@ -141,10 +140,10 @@ func (s *peer) getSignatureForDocument(ctx context.Context, model documents.Mode
 	var header *p2ppb.Header
 	tc, err := s.config.GetAccount(cid[:])
 
-	cd, err := model.PackCoreDocument()
-	if err != nil {
-		return nil, err
-	}
+	ed := model.Document.EmbeddedData
+	eds := model.Document.EmbeddedDataSalts
+
+	cd := model.PackCoreDocument(ed, eds)
 
 	if err == nil {
 		// this is a local account
@@ -214,7 +213,7 @@ type signatureResponseWrap struct {
 	err  error
 }
 
-func (s *peer) getSignatureAsync(ctx context.Context, model documents.Model, id identity.CentID, out chan<- signatureResponseWrap) {
+func (s *peer) getSignatureAsync(ctx context.Context, model documents.CoreDocument, id identity.CentID, out chan<- signatureResponseWrap) {
 	resp, err := s.getSignatureForDocument(ctx, model, id)
 	out <- signatureResponseWrap{
 		resp: resp,
@@ -223,7 +222,7 @@ func (s *peer) getSignatureAsync(ctx context.Context, model documents.Model, id 
 }
 
 // GetSignaturesForDocument requests peer nodes for the signature, verifies them, and returns those signatures.
-func (s *peer) GetSignaturesForDocument(ctx context.Context, model documents.Model) (signatures []*coredocumentpb.Signature, err error) {
+func (s *peer) GetSignaturesForDocument(ctx context.Context, model documents.CoreDocument) (signatures []*coredocumentpb.Signature, err error) {
 	in := make(chan signatureResponseWrap)
 	defer close(in)
 

@@ -4,6 +4,7 @@ package p2p
 
 import (
 	"context"
+	"github.com/centrifuge/go-centrifuge/documents"
 	"testing"
 
 	"github.com/centrifuge/go-centrifuge/testingutils/documents"
@@ -48,18 +49,20 @@ func TestGetSignatureForDocument_fail_connect(t *testing.T) {
 	testClient := &peer{config: cfg, idService: idService, mes: m, disablePeerStore: true}
 
 	coreDoc, err := testingdocuments.GenerateCoreDocumentModel()
+	assert.NoError(t, err)
 	c, err := cfg.GetConfig()
 	assert.NoError(t, err)
 	c = updateKeys(c)
 	ctx := testingconfig.CreateAccountContext(t, c)
-
 	assert.Nil(t, err, "centrifugeId not initialized correctly ")
+	mm := documents.Model{}
+	mm.
 
 	_, err = p2pcommon.PrepareP2PEnvelope(ctx, c.GetNetworkID(), p2pcommon.MessageTypeRequestSignature, &p2ppb.SignatureRequest{Document: &coreDoc.Document	})
 	assert.NoError(t, err, "signature request could not be created")
 
 	m.On("SendMessage", ctx, mock.Anything, mock.Anything, p2pcommon.ProtocolForCID(centrifugeId)).Return(nil, errors.New("some error"))
-	resp, err := testClient.getSignatureForDocument(ctx, coreDoc.Document, centrifugeId)
+	resp, err := testClient.getSignatureForDocument(ctx, coreDoc, centrifugeId)
 	m.AssertExpectations(t)
 	assert.Error(t, err, "must fail")
 	assert.Nil(t, resp, "must be nil")
