@@ -168,7 +168,7 @@ func TestUpdateVersionValidator(t *testing.T) {
 	assert.Equal(t, 5, errors.Len(err))
 
 	// success
-	newDM, err = oldDM.PrepareNewVersion(nil)
+	newDM, err = oldDM.PrepareNewVersion(nil, false)
 	assert.Nil(t, err)
 	old.On("PackCoreDocument").Return(oldDM, nil).Once()
 	newM.On("PackCoreDocument").Return(newDM, nil).Once()

@@ -21,8 +21,9 @@ import (
 )
 
 func TestCoreDocumentProcessor_SendNilDocument(t *testing.T) {
+	cd := coredocumentpb.CoreDocument{}
 	dp := DefaultProcessor(nil, nil, nil, cfg)
-	err := dp.Send(nil, nil, [identity.CentIDLength]byte{})
+	err := dp.Send(nil, cd, [identity.CentIDLength]byte{})
 	assert.Error(t, err, "should have thrown an error")
 }
 
@@ -111,7 +112,7 @@ type p2pClient struct {
 
 func (p p2pClient) GetSignaturesForDocument(ctx context.Context, model Model) ([]*coredocumentpb.Signature, error) {
 	args := p.Called(ctx, model)
-    return args.Error(0)
+    return args.Get(0).([]*coredocumentpb.Signature),args.Error(1)
 }
 
 func TestDefaultProcessor_RequestSignatures(t *testing.T) {

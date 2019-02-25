@@ -4,6 +4,7 @@ package documents
 
 import (
 	"crypto/sha256"
+	"fmt"
 	"os"
 	"testing"
 
@@ -132,13 +133,13 @@ func TestCoreDocument_PrepareNewVersion(t *testing.T) {
 	ncd, err = cd.PrepareNewVersion(c, false)
 	assert.NoError(t, err)
 	assert.NotNil(t, ncd)
-	assert.Len(t, 2, len(ncd.Document.Collaborators))
+	assert.Len(t, ncd.Document.Collaborators, 2)
 	assert.Nil(t, ncd.Document.CoredocumentSalts)
 
 	ncd, err = cd.PrepareNewVersion(c, true)
 	assert.NoError(t, err)
 	assert.NotNil(t, ncd)
-	assert.Len(t, 2, len(ncd.Document.Collaborators))
+	assert.Len(t, ncd.Document.Collaborators, 2)
 	assert.NotNil(t, ncd.Document.CoredocumentSalts)
 
 	assert.Equal(t, cd.Document.NextVersion, ncd.Document.CurrentVersion)
@@ -186,12 +187,13 @@ func TestGetDocumentSigningTree(t *testing.T) {
 	_, err := cd.SigningRoot(documenttypes.InvoiceDocumentTypeUrl)
 	assert.Error(t, err)
 
-	// no embed data
-	cd.Document.DataRoot = utils.RandomSlice(32)
+	// data root invalid length
+	cd.Document.DataRoot = utils.RandomSlice(33)
 	_, err = cd.SigningRoot(documenttypes.InvoiceDocumentTypeUrl)
 	assert.Error(t, err)
 
 	// successful tree generation
+	cd.Document.DataRoot = utils.RandomSlice(32)
 	cd.Document.EmbeddedData = docAny
 	assert.NoError(t, cd.setSalts())
 	root, err := cd.SigningRoot(documenttypes.InvoiceDocumentTypeUrl)
@@ -199,6 +201,7 @@ func TestGetDocumentSigningTree(t *testing.T) {
 	assert.NotNil(t, root)
 
 	tree, err := cd.DocumentRootTree()
+	fmt.Println(tree.String())
 	assert.NoError(t, err)
 	_, leaf := tree.GetLeafByProperty("data_root")
 	assert.NotNil(t, leaf)
@@ -207,7 +210,7 @@ func TestGetDocumentSigningTree(t *testing.T) {
 	assert.NotNil(t, leaf)
 }
 
-// TestGetDocumentRootTree tests that the documentroottree is properly calculated
+// TestGetDocumentRootTree tests that the document root tree is properly calculated
 func TestGetDocumentRootTree(t *testing.T) {
 	cd := newCoreDocument()
 
@@ -287,7 +290,7 @@ func TestCoreDocument_GenerateProofs(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.fieldName, func(t *testing.T) {
-			p, err := cd.CreateProofs(testTree, []string{test.fieldName})
+			p, err := cd.CreateProofs(DocumentTypeField, testTree, []string{test.fieldName})
 			assert.NoError(t, err)
 			assert.Equal(t, test.proofLength, len(p[0].SortedHashes))
 			var l *proofs.LeafNode

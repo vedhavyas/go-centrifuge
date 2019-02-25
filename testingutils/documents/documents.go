@@ -37,7 +37,7 @@ func (m *MockService) CreateProofsForVersion(ctx context.Context, documentID, ve
 	return args.Get(0).(*documents.DocumentProof), args.Error(1)
 }
 
-func (m *MockService) DeriveFromCoreDocument(cd *coredocumentpb.CoreDocument) (documents.Model, error) {
+func (m *MockService) DeriveFromCoreDocument(cd coredocumentpb.CoreDocument) (documents.Model, error) {
 	args := m.Called(cd)
 	return args.Get(0).(documents.Model), args.Error(1)
 }
@@ -74,7 +74,8 @@ func (m *MockModel) JSON() ([]byte, error) {
 	return data, args.Error(1)
 }
 
-func GenerateCoreDocumentModelWithCollaborators(collaborators [][]byte) (*documents.CoreDocument, error) {
+func GenerateCoreDocumentModelWithCollaborators(collaborators [][]byte) (documents.CoreDocument, error) {
+	var cd documents.CoreDocument
 	var collabs []string
 	for _, c := range collaborators {
 		id := hexutil.Encode(c)
@@ -82,7 +83,7 @@ func GenerateCoreDocumentModelWithCollaborators(collaborators [][]byte) (*docume
 	}
 	m, err := documents.NewCoreDocumentWithCollaborators(collabs)
 	if err != nil {
-		return nil, err
+		return cd, err
 	}
 	invData := &invoicepb.InvoiceData{}
 	dataSalts, _ := documents.GenerateNewSalts(invData, "invoice", []byte{1, 0, 0, 0})
@@ -94,14 +95,17 @@ func GenerateCoreDocumentModelWithCollaborators(collaborators [][]byte) (*docume
 	m.Document.EmbeddedDataSalts = documents.ConvertToProtoSalts(dataSalts)
 	cdSalts, _ := documents.GenerateNewSalts(&m.Document, "", nil)
 	m.Document.CoredocumentSalts = documents.ConvertToProtoSalts(cdSalts)
+	cd = *m
 
-	return m, nil
+	return cd, nil
 }
 
-func GenerateCoreDocumentModel() (*documents.CoreDocument, error) {
+func GenerateCoreDocumentModel() (documents.CoreDocument, error) {
+	var cd documents.CoreDocument
 	m, err := GenerateCoreDocumentModelWithCollaborators(nil)
 	if err != nil {
-		return nil, err
+		return cd, err
 	}
-	return m, nil
+	cd = m
+	return cd, nil
 }
