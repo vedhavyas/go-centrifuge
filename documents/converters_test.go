@@ -85,7 +85,7 @@ func TestP2PAttributes(t *testing.T) {
 	cattrs := map[string]attribute{
 		"time_test": {
 			Type:  AttrTimestamp.String(),
-			Value: time.Now().UTC().Format(time.RFC3339Nano),
+			Value: time.Now().UTC().Format(time.RFC3339),
 		},
 
 		"string_test": {
@@ -143,7 +143,7 @@ func TestAttributes_signed(t *testing.T) {
 	cattrs := map[string]attribute{
 		"time_test": {
 			Type:  AttrTimestamp.String(),
-			Value: time.Now().UTC().Format(time.RFC3339Nano),
+			Value: time.Now().UTC().Format(time.RFC3339),
 		},
 
 		"string_test": {

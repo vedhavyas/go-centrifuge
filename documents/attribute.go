@@ -9,7 +9,6 @@ import (
 	"github.com/centrifuge/go-centrifuge/identity"
 	"github.com/centrifuge/go-centrifuge/utils"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/golang/protobuf/ptypes/timestamp"
 )
 
 // AttributeType represents the custom attribute type.
@@ -111,7 +110,7 @@ type AttrVal struct {
 	Decimal   *Decimal
 	Str       string
 	Bytes     []byte
-	Timestamp *timestamp.Timestamp
+	Timestamp time.Time
 	Signed    Signed
 }
 
@@ -128,13 +127,11 @@ func AttrValFromString(attrType AttributeType, value string) (attrVal AttrVal, e
 	case AttrBytes:
 		attrVal.Bytes, err = hexutil.Decode(value)
 	case AttrTimestamp:
-		var t time.Time
-		t, err = time.Parse(time.RFC3339, value)
+		attrVal.Timestamp, err = time.Parse(time.RFC3339, value)
 		if err != nil {
 			return attrVal, err
 		}
 
-		attrVal.Timestamp, err = utils.ToTimestamp(t.UTC())
 	default:
 		return attrVal, ErrNotValidAttrType
 	}
@@ -158,13 +155,7 @@ func (attrVal AttrVal) String() (str string, err error) {
 	case AttrBytes:
 		str = hexutil.Encode(attrVal.Bytes)
 	case AttrTimestamp:
-		var tp time.Time
-		tp, err = utils.FromTimestamp(attrVal.Timestamp)
-		if err != nil {
-			break
-		}
-
-		str = tp.UTC().Format(time.RFC3339)
+		str = attrVal.Timestamp.UTC().Format(time.RFC3339)
 	case AttrSigned:
 		str = attrVal.Signed.String()
 	}
